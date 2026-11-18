@@ -1,0 +1,587 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny all paths unless explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'blessednewton44@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isOwner(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    function isStringBounded(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isBoundedStringArray(arr, maxItems) {
+      return arr is list && arr.size() <= maxItems && (arr.size() == 0 || arr[0] is string);
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'retentionDays', 'consentAccepted', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'retentionDays', 'consentAccepted', 'consentUpdatedAt', 'onboardingCompleted', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isStringBounded(data.email, 3, 256)
+        && isStringBounded(data.displayName, 1, 120)
+        && (!('photoURL' in data) || isStringBounded(data.photoURL, 0, 512))
+        && data.role in ['analyst', 'auditor', 'admin']
+        && data.retentionDays is int && data.retentionDays >= 7 && data.retentionDays <= 365
+        && data.consentAccepted is bool
+        && (!('consentUpdatedAt' in data) || data.consentUpdatedAt is timestamp)
+        && (!('onboardingCompleted' in data) || data.onboardingCompleted is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRole(data) {
+      return data.keys().hasAll(['uid', 'grantedBy', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'grantedBy', 'createdAt'])
+        && isValidId(data.uid)
+        && isStringBounded(data.grantedBy, 1, 128)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDevice(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'platform', 'osVersion', 'hostname', 'agentMode', 'status', 'city', 'country', 'latitude', 'longitude', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'name', 'platform', 'osVersion', 'hostname', 'agentMode', 'status', 'city', 'country', 'latitude', 'longitude', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isStringBounded(data.name, 1, 120)
+        && data.platform in ['windows', 'android', 'linux', 'macos', 'ios', 'web']
+        && isStringBounded(data.osVersion, 1, 64)
+        && isStringBounded(data.hostname, 1, 128)
+        && data.agentMode in ['endpoint-agent', 'vpn-metadata', 'privacy-report', 'browser-inspector']
+        && data.status in ['active', 'paused', 'stopped']
+        && isStringBounded(data.city, 1, 80)
+        && isStringBounded(data.country, 1, 80)
+        && data.latitude is number && data.latitude >= -90 && data.latitude <= 90
+        && data.longitude is number && data.longitude >= -180 && data.longitude <= 180
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSession(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'deviceId', 'title', 'status', 'sourceType', 'observationCount', 'bytesObserved', 'integrityHash', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'deviceId', 'title', 'status', 'sourceType', 'observationCount', 'bytesObserved', 'integrityHash', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isValidId(data.deviceId)
+        && isStringBounded(data.title, 1, 160)
+        && data.status in ['active', 'paused', 'completed']
+        && data.sourceType in ['live-probe', 'har-import', 'ios-privacy-report', 'android-vpn-log', 'endpoint-agent']
+        && data.observationCount is int && data.observationCount >= 0
+        && data.bytesObserved is int && data.bytesObserved >= 0
+        && isStringBounded(data.integrityHash, 1, 128)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidApplication(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'deviceId', 'name', 'packageId', 'developer', 'version', 'platform', 'privacyScore', 'permissionsPenalty', 'thirdPartyPenalty', 'backgroundPenalty', 'disclosurePenalty', 'requestedPermissions', 'grantedPermissions', 'detectedSdks', 'externalDomains', 'advertisingIdAccess', 'policyUrl', 'retentionDisclosure', 'sharingPractices', 'evidenceType', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'deviceId', 'name', 'packageId', 'developer', 'version', 'platform', 'privacyScore', 'permissionsPenalty', 'thirdPartyPenalty', 'backgroundPenalty', 'disclosurePenalty', 'requestedPermissions', 'grantedPermissions', 'detectedSdks', 'externalDomains', 'advertisingIdAccess', 'policyUrl', 'retentionDisclosure', 'sharingPractices', 'evidenceType', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isValidId(data.deviceId)
+        && isStringBounded(data.name, 1, 140)
+        && isStringBounded(data.packageId, 1, 160)
+        && isStringBounded(data.developer, 1, 140)
+        && isStringBounded(data.version, 1, 48)
+        && data.platform in ['windows', 'android', 'linux', 'macos', 'ios', 'web']
+        && data.privacyScore is int && data.privacyScore >= 0 && data.privacyScore <= 100
+        && data.permissionsPenalty is int && data.permissionsPenalty >= 0 && data.permissionsPenalty <= 40
+        && data.thirdPartyPenalty is int && data.thirdPartyPenalty >= 0 && data.thirdPartyPenalty <= 30
+        && data.backgroundPenalty is int && data.backgroundPenalty >= 0 && data.backgroundPenalty <= 15
+        && data.disclosurePenalty is int && data.disclosurePenalty >= 0 && data.disclosurePenalty <= 15
+        && isBoundedStringArray(data.requestedPermissions, 32)
+        && isBoundedStringArray(data.grantedPermissions, 32)
+        && isBoundedStringArray(data.detectedSdks, 32)
+        && isBoundedStringArray(data.externalDomains, 64)
+        && data.advertisingIdAccess in ['observed', 'declared', 'not-detected', 'unknown']
+        && isStringBounded(data.policyUrl, 0, 512)
+        && isStringBounded(data.retentionDisclosure, 0, 500)
+        && isStringBounded(data.sharingPractices, 0, 600)
+        && data.evidenceType in ['verified-technical', 'declared-disclosure', 'inferred', 'unknown']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidConnection(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'sessionId', 'deviceId', 'appName', 'observedAt', 'sourceOrigin', 'sourceLat', 'sourceLng', 'destinationDomain', 'destinationIp', 'destinationPort', 'protocol', 'city', 'country', 'countryCode', 'latitude', 'longitude', 'asn', 'hostingOrg', 'companyName', 'serviceCategory', 'partyType', 'bytesTransferred', 'requestCount', 'isBackground', 'confidence', 'evidenceType', 'evidenceSummary', 'tlsSubject', 'dnsRecordType', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'sessionId', 'deviceId', 'appName', 'observedAt', 'sourceOrigin', 'sourceLat', 'sourceLng', 'destinationDomain', 'destinationIp', 'destinationPort', 'protocol', 'city', 'country', 'countryCode', 'latitude', 'longitude', 'asn', 'hostingOrg', 'companyName', 'serviceCategory', 'partyType', 'bytesTransferred', 'requestCount', 'isBackground', 'confidence', 'evidenceType', 'evidenceSummary', 'tlsSubject', 'dnsRecordType', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isValidId(data.sessionId)
+        && isValidId(data.deviceId)
+        && isStringBounded(data.appName, 1, 140)
+        && isStringBounded(data.observedAt, 1, 64)
+        && isStringBounded(data.sourceOrigin, 1, 120)
+        && data.sourceLat is number && data.sourceLat >= -90 && data.sourceLat <= 90
+        && data.sourceLng is number && data.sourceLng >= -180 && data.sourceLng <= 180
+        && isStringBounded(data.destinationDomain, 1, 253)
+        && isStringBounded(data.destinationIp, 1, 64)
+        && data.destinationPort is int && data.destinationPort >= 0 && data.destinationPort <= 65535
+        && data.protocol in ['HTTPS', 'TLS', 'DNS', 'HTTP', 'QUIC']
+        && isStringBounded(data.city, 1, 80)
+        && isStringBounded(data.country, 1, 80)
+        && isStringBounded(data.countryCode, 1, 8)
+        && data.latitude is number && data.latitude >= -90 && data.latitude <= 90
+        && data.longitude is number && data.longitude >= -180 && data.longitude <= 180
+        && isStringBounded(data.asn, 1, 32)
+        && isStringBounded(data.hostingOrg, 1, 140)
+        && isStringBounded(data.companyName, 1, 140)
+        && data.serviceCategory in ['first-party', 'advertising', 'analytics', 'cloud', 'cdn', 'social', 'crash-reporting', 'payment', 'attribution', 'unclassified']
+        && data.partyType in ['first-party', 'third-party', 'unknown']
+        && data.bytesTransferred is int && data.bytesTransferred >= 0
+        && data.requestCount is int && data.requestCount >= 1
+        && data.isBackground is bool
+        && data.confidence in ['high', 'medium', 'low']
+        && data.evidenceType in ['verified-technical', 'declared-disclosure', 'inferred', 'unknown']
+        && isStringBounded(data.evidenceSummary, 1, 500)
+        && isStringBounded(data.tlsSubject, 0, 200)
+        && isStringBounded(data.dnsRecordType, 0, 24)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidThirdParty(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'companyName', 'domain', 'observedIp', 'hostingOrg', 'country', 'asn', 'classification', 'associatedApps', 'firstObservedAt', 'lastObservedAt', 'evidenceSummary', 'confidence', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'companyName', 'domain', 'observedIp', 'hostingOrg', 'country', 'asn', 'classification', 'associatedApps', 'firstObservedAt', 'lastObservedAt', 'evidenceSummary', 'confidence', 'externalFeedSource', 'externalFeedVerdict', 'externalFeedDetails', 'externalFeedCheckedAt', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isStringBounded(data.companyName, 1, 140)
+        && isStringBounded(data.domain, 1, 253)
+        && isStringBounded(data.observedIp, 1, 64)
+        && isStringBounded(data.hostingOrg, 1, 140)
+        && isStringBounded(data.country, 1, 80)
+        && isStringBounded(data.asn, 1, 32)
+        && data.classification in ['first-party', 'advertising', 'analytics', 'cloud', 'cdn', 'social', 'crash-reporting', 'payment', 'attribution', 'unclassified']
+        && isBoundedStringArray(data.associatedApps, 32)
+        && isStringBounded(data.firstObservedAt, 1, 64)
+        && isStringBounded(data.lastObservedAt, 1, 64)
+        && isStringBounded(data.evidenceSummary, 1, 500)
+        && data.confidence in ['high', 'medium', 'low']
+        && (!('externalFeedSource' in data) || isStringBounded(data.externalFeedSource, 0, 140))
+        && (!('externalFeedVerdict' in data) || data.externalFeedVerdict in ['malicious', 'privacy-invasive', 'ad-tracker', 'clean', 'unlisted'])
+        && (!('externalFeedDetails' in data) || isStringBounded(data.externalFeedDetails, 0, 500))
+        && (!('externalFeedCheckedAt' in data) || isStringBounded(data.externalFeedCheckedAt, 0, 64))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPolicy(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'appName', 'policyUrl', 'versionLabel', 'sourceType', 'summary', 'collectedInfo', 'purposeOfCollection', 'recipients', 'soldOrShared', 'retentionPeriod', 'userChoices', 'withdrawalImpact', 'unclearOrRiskyClauses', 'internationalTransfers', 'deletionRights', 'clauses', 'comparisonSummary', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'appName', 'policyUrl', 'versionLabel', 'sourceType', 'summary', 'collectedInfo', 'purposeOfCollection', 'recipients', 'soldOrShared', 'retentionPeriod', 'userChoices', 'withdrawalImpact', 'unclearOrRiskyClauses', 'internationalTransfers', 'deletionRights', 'clauses', 'comparisonSummary', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isStringBounded(data.appName, 1, 140)
+        && isStringBounded(data.policyUrl, 0, 512)
+        && isStringBounded(data.versionLabel, 1, 64)
+        && data.sourceType in ['url', 'text', 'pdf']
+        && isStringBounded(data.summary, 1, 2000)
+        && isStringBounded(data.collectedInfo, 1, 1500)
+        && isStringBounded(data.purposeOfCollection, 1, 1500)
+        && isStringBounded(data.recipients, 1, 1500)
+        && isStringBounded(data.soldOrShared, 1, 1500)
+        && isStringBounded(data.retentionPeriod, 1, 1000)
+        && isStringBounded(data.userChoices, 1, 1500)
+        && isStringBounded(data.withdrawalImpact, 1, 1000)
+        && isStringBounded(data.unclearOrRiskyClauses, 1, 2000)
+        && isStringBounded(data.internationalTransfers, 1, 1000)
+        && isStringBounded(data.deletionRights, 1, 1000)
+        && isBoundedStringArray(data.clauses, 30)
+        && isStringBounded(data.comparisonSummary, 0, 2000)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRiskAlert(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'deviceId', 'sessionId', 'appName', 'domain', 'severity', 'category', 'title', 'explanation', 'evidence', 'confidence', 'recommendedAction', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'deviceId', 'sessionId', 'appName', 'domain', 'severity', 'category', 'title', 'explanation', 'evidence', 'confidence', 'recommendedAction', 'status', 'externalFeedSource', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isValidId(data.deviceId)
+        && isStringBounded(data.sessionId, 0, 128)
+        && isStringBounded(data.appName, 1, 140)
+        && isStringBounded(data.domain, 0, 253)
+        && data.severity in ['critical', 'high', 'medium', 'low']
+        && data.category in ['unexpected-third-party', 'excessive-permissions', 'background-beacon', 'new-destination', 'disclosure-mismatch', 'suspicious-pattern', 'data-spike', 'policy-violation', 'threat-feed-match']
+        && isStringBounded(data.title, 1, 180)
+        && isStringBounded(data.explanation, 1, 1200)
+        && isStringBounded(data.evidence, 1, 800)
+        && data.confidence in ['high', 'medium', 'low']
+        && isStringBounded(data.recommendedAction, 1, 600)
+        && data.status in ['open', 'acknowledged', 'mitigated']
+        && (!('externalFeedSource' in data) || isStringBounded(data.externalFeedSource, 0, 140))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAlertConfig(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'enableNewThirdPartyAlert', 'enableSensitivePermissionAlert', 'sensitivePermissionThreshold', 'enableDataSpikeAlert', 'dataSpikeThresholdKb', 'enablePolicyViolationAlert', 'enableThreatFeedAlert', 'notifyInAppBanner', 'notifyBrowserPush', 'notifySoundChime', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'enableNewThirdPartyAlert', 'enableSensitivePermissionAlert', 'sensitivePermissionThreshold', 'enableDataSpikeAlert', 'dataSpikeThresholdKb', 'enablePolicyViolationAlert', 'enableThreatFeedAlert', 'notifyInAppBanner', 'notifyBrowserPush', 'notifySoundChime', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && data.enableNewThirdPartyAlert is bool
+        && data.enableSensitivePermissionAlert is bool
+        && data.sensitivePermissionThreshold is int && data.sensitivePermissionThreshold >= 1 && data.sensitivePermissionThreshold <= 20
+        && data.enableDataSpikeAlert is bool
+        && data.dataSpikeThresholdKb is int && data.dataSpikeThresholdKb >= 10 && data.dataSpikeThresholdKb <= 100000
+        && data.enablePolicyViolationAlert is bool
+        && data.enableThreatFeedAlert is bool
+        && data.notifyInAppBanner is bool
+        && data.notifyBrowserPush is bool
+        && data.notifySoundChime is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidForensicReport(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'sessionId', 'deviceId', 'title', 'format', 'integritySha256', 'recordCount', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'sessionId', 'deviceId', 'title', 'format', 'integritySha256', 'recordCount', 'summary', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isValidId(data.sessionId)
+        && isValidId(data.deviceId)
+        && isStringBounded(data.title, 1, 180)
+        && data.format in ['json', 'csv', 'html', 'pdf']
+        && isStringBounded(data.integritySha256, 64, 64)
+        && data.recordCount is int && data.recordCount >= 0
+        && isStringBounded(data.summary, 1, 1000)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'actorEmail', 'action', 'targetType', 'targetId', 'details', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'actorEmail', 'action', 'targetType', 'targetId', 'details', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && isStringBounded(data.actorEmail, 1, 256)
+        && isStringBounded(data.action, 1, 120)
+        && isStringBounded(data.targetType, 1, 64)
+        && isStringBounded(data.targetId, 1, 128)
+        && isStringBounded(data.details, 1, 600)
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(userId)
+        && isVerified()
+        && isValidUserProfile(incoming())
+        && isOwner(userId)
+        && incoming().uid == userId
+        && incoming().role == 'analyst'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerified()
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'retentionDays', 'consentAccepted', 'consentUpdatedAt', 'onboardingCompleted', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create, update: if isValidId(userId) && isAdmin() && isValidAdminRole(incoming()) && incoming().createdAt == request.time;
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    match /devices/{deviceId} {
+      allow get: if isValidId(deviceId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(deviceId)
+        && isVerified()
+        && isValidDevice(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == deviceId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(deviceId)
+        && isVerified()
+        && isValidDevice(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && (
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['name', 'osVersion', 'agentMode', 'city', 'country', 'latitude', 'longitude', 'updatedAt'])
+            )
+          )
+        );
+      allow delete: if isValidId(deviceId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /sessions/{sessionId} {
+      allow get: if isValidId(sessionId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(sessionId)
+        && isVerified()
+        && isValidSession(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == sessionId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/devices/$(incoming().deviceId))
+        && get(/databases/$(database)/documents/devices/$(incoming().deviceId)).data.ownerId == request.auth.uid;
+      allow update: if isValidId(sessionId)
+        && isVerified()
+        && isValidSession(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().deviceId == existing().deviceId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && existing().status != 'completed'
+            && (
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['observationCount', 'bytesObserved', 'integrityHash', 'updatedAt'])
+            )
+          )
+        );
+      allow delete: if isValidId(sessionId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /applications/{appId} {
+      allow get: if isValidId(appId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(appId)
+        && isVerified()
+        && isValidApplication(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == appId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/devices/$(incoming().deviceId))
+        && get(/databases/$(database)/documents/devices/$(incoming().deviceId)).data.ownerId == request.auth.uid;
+      allow update: if isValidId(appId)
+        && isVerified()
+        && isValidApplication(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().deviceId == existing().deviceId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['privacyScore', 'permissionsPenalty', 'thirdPartyPenalty', 'backgroundPenalty', 'disclosurePenalty', 'grantedPermissions', 'detectedSdks', 'externalDomains', 'policyUrl', 'retentionDisclosure', 'sharingPractices', 'evidenceType', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(appId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /connections/{connectionId} {
+      allow get: if isValidId(connectionId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(connectionId)
+        && isVerified()
+        && isValidConnection(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == connectionId
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/devices/$(incoming().deviceId))
+        && get(/databases/$(database)/documents/devices/$(incoming().deviceId)).data.ownerId == request.auth.uid
+        && exists(/databases/$(database)/documents/sessions/$(incoming().sessionId))
+        && get(/databases/$(database)/documents/sessions/$(incoming().sessionId)).data.ownerId == request.auth.uid;
+      allow update: if isValidId(connectionId) && isAdmin() && isValidConnection(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(connectionId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /thirdParties/{serviceId} {
+      allow get: if isValidId(serviceId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(serviceId)
+        && isVerified()
+        && isValidThirdParty(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == serviceId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(serviceId)
+        && isVerified()
+        && isValidThirdParty(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['observedIp', 'hostingOrg', 'country', 'asn', 'classification', 'associatedApps', 'lastObservedAt', 'evidenceSummary', 'confidence', 'externalFeedSource', 'externalFeedVerdict', 'externalFeedDetails', 'externalFeedCheckedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(serviceId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /policies/{policyId} {
+      allow get: if isValidId(policyId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(policyId)
+        && isVerified()
+        && isValidPolicy(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == policyId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(policyId)
+        && isVerified()
+        && isValidPolicy(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['versionLabel', 'summary', 'collectedInfo', 'purposeOfCollection', 'recipients', 'soldOrShared', 'retentionPeriod', 'userChoices', 'withdrawalImpact', 'unclearOrRiskyClauses', 'internationalTransfers', 'deletionRights', 'clauses', 'comparisonSummary', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(policyId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /riskAlerts/{alertId} {
+      allow get: if isValidId(alertId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(alertId)
+        && isVerified()
+        && isValidRiskAlert(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == alertId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/devices/$(incoming().deviceId))
+        && get(/databases/$(database)/documents/devices/$(incoming().deviceId)).data.ownerId == request.auth.uid;
+      allow update: if isValidId(alertId)
+        && isVerified()
+        && isValidRiskAlert(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().deviceId == existing().deviceId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && existing().status != 'mitigated'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(alertId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /forensicReports/{reportId} {
+      allow get: if isValidId(reportId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(reportId)
+        && isVerified()
+        && isValidForensicReport(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == reportId
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/devices/$(incoming().deviceId))
+        && get(/databases/$(database)/documents/devices/$(incoming().deviceId)).data.ownerId == request.auth.uid
+        && exists(/databases/$(database)/documents/sessions/$(incoming().sessionId))
+        && get(/databases/$(database)/documents/sessions/$(incoming().sessionId)).data.ownerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isValidId(reportId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /auditLogs/{logId} {
+      allow get: if isValidId(logId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(logId)
+        && isVerified()
+        && isValidAuditLog(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == logId
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(logId) && isAdmin();
+    }
+
+    match /alertConfigs/{configId} {
+      allow get: if isValidId(configId) && (isOwner(configId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(configId)
+        && isVerified()
+        && isValidAlertConfig(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().id == configId
+        && configId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(configId)
+        && isVerified()
+        && isValidAlertConfig(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['enableNewThirdPartyAlert', 'enableSensitivePermissionAlert', 'sensitivePermissionThreshold', 'enableDataSpikeAlert', 'dataSpikeThresholdKb', 'enablePolicyViolationAlert', 'enableThreatFeedAlert', 'notifyInAppBanner', 'notifyBrowserPush', 'notifySoundChime', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(configId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+  }
+}

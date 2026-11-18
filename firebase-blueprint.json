@@ -1,0 +1,335 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated NLA analyst or administrator profile and data governance preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "role": { "type": "string", "enum": ["analyst", "auditor", "admin"] },
+        "retentionDays": { "type": "integer" },
+        "consentAccepted": { "type": "boolean" },
+        "consentUpdatedAt": { "type": "string", "format": "date-time" },
+        "onboardingCompleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "retentionDays", "consentAccepted", "createdAt", "updatedAt"]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Trusted administrator role marker document.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "grantedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "grantedBy", "createdAt"]
+    },
+    "Device": {
+      "title": "Device",
+      "description": "Authorized monitored device or browser endpoint across Windows, Android, Linux, macOS, iOS, or Web.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "platform": { "type": "string", "enum": ["windows", "android", "linux", "macos", "ios", "web"] },
+        "osVersion": { "type": "string", "maxLength": 64 },
+        "hostname": { "type": "string", "maxLength": 128 },
+        "agentMode": { "type": "string", "enum": ["endpoint-agent", "vpn-metadata", "privacy-report", "browser-inspector"] },
+        "status": { "type": "string", "enum": ["active", "paused", "stopped"] },
+        "city": { "type": "string", "maxLength": 80 },
+        "country": { "type": "string", "maxLength": 80 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "platform", "osVersion", "hostname", "agentMode", "status", "city", "country", "latitude", "longitude", "createdAt", "updatedAt"]
+    },
+    "MonitoringSession": {
+      "title": "MonitoringSession",
+      "description": "Timestamped privacy monitoring or capture inspection session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "status": { "type": "string", "enum": ["active", "paused", "completed"] },
+        "sourceType": { "type": "string", "enum": ["live-probe", "har-import", "ios-privacy-report", "android-vpn-log", "endpoint-agent"] },
+        "observationCount": { "type": "integer" },
+        "bytesObserved": { "type": "integer" },
+        "integrityHash": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "deviceId", "title", "status", "sourceType", "observationCount", "bytesObserved", "integrityHash", "createdAt", "updatedAt"]
+    },
+    "AnalyzedApplication": {
+      "title": "AnalyzedApplication",
+      "description": "Application privacy intelligence record with permissions, SDKs, contacted domains, and transparent score criteria.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "packageId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "developer": { "type": "string", "maxLength": 140 },
+        "version": { "type": "string", "maxLength": 48 },
+        "platform": { "type": "string", "enum": ["windows", "android", "linux", "macos", "ios", "web"] },
+        "privacyScore": { "type": "integer" },
+        "permissionsPenalty": { "type": "integer" },
+        "thirdPartyPenalty": { "type": "integer" },
+        "backgroundPenalty": { "type": "integer" },
+        "disclosurePenalty": { "type": "integer" },
+        "requestedPermissions": { "type": "array" },
+        "grantedPermissions": { "type": "array" },
+        "detectedSdks": { "type": "array" },
+        "externalDomains": { "type": "array" },
+        "advertisingIdAccess": { "type": "string", "enum": ["observed", "declared", "not-detected", "unknown"] },
+        "policyUrl": { "type": "string", "maxLength": 512 },
+        "retentionDisclosure": { "type": "string", "maxLength": 500 },
+        "sharingPractices": { "type": "string", "maxLength": 600 },
+        "evidenceType": { "type": "string", "enum": ["verified-technical", "declared-disclosure", "inferred", "unknown"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "deviceId", "name", "packageId", "developer", "version", "platform", "privacyScore", "permissionsPenalty", "thirdPartyPenalty", "backgroundPenalty", "disclosurePenalty", "requestedPermissions", "grantedPermissions", "detectedSdks", "externalDomains", "advertisingIdAccess", "policyUrl", "retentionDisclosure", "sharingPractices", "evidenceType", "createdAt", "updatedAt"]
+    },
+    "NetworkConnection": {
+      "title": "NetworkConnection",
+      "description": "Observed DNS, TLS, HTTP, or socket transmission with geolocation, ASN, confidence, and evidence attribution.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "observedAt": { "type": "string", "maxLength": 64 },
+        "sourceOrigin": { "type": "string", "maxLength": 120 },
+        "sourceLat": { "type": "number" },
+        "sourceLng": { "type": "number" },
+        "destinationDomain": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "destinationIp": { "type": "string", "maxLength": 64 },
+        "destinationPort": { "type": "integer" },
+        "protocol": { "type": "string", "enum": ["HTTPS", "TLS", "DNS", "HTTP", "QUIC"] },
+        "city": { "type": "string", "maxLength": 80 },
+        "country": { "type": "string", "maxLength": 80 },
+        "countryCode": { "type": "string", "maxLength": 8 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "asn": { "type": "string", "maxLength": 32 },
+        "hostingOrg": { "type": "string", "maxLength": 140 },
+        "companyName": { "type": "string", "maxLength": 140 },
+        "serviceCategory": { "type": "string", "enum": ["first-party", "advertising", "analytics", "cloud", "cdn", "social", "crash-reporting", "payment", "attribution", "unclassified"] },
+        "partyType": { "type": "string", "enum": ["first-party", "third-party", "unknown"] },
+        "bytesTransferred": { "type": "integer" },
+        "requestCount": { "type": "integer" },
+        "isBackground": { "type": "boolean" },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "evidenceType": { "type": "string", "enum": ["verified-technical", "declared-disclosure", "inferred", "unknown"] },
+        "evidenceSummary": { "type": "string", "maxLength": 500 },
+        "tlsSubject": { "type": "string", "maxLength": 200 },
+        "dnsRecordType": { "type": "string", "maxLength": 24 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "sessionId", "deviceId", "appName", "observedAt", "sourceOrigin", "sourceLat", "sourceLng", "destinationDomain", "destinationIp", "destinationPort", "protocol", "city", "country", "countryCode", "latitude", "longitude", "asn", "hostingOrg", "companyName", "serviceCategory", "partyType", "bytesTransferred", "requestCount", "isBackground", "confidence", "evidenceType", "evidenceSummary", "tlsSubject", "dnsRecordType", "createdAt"]
+    },
+    "ThirdPartyService": {
+      "title": "ThirdPartyService",
+      "description": "Classified external company or infrastructure destination observed across monitored applications.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "domain": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "observedIp": { "type": "string", "maxLength": 64 },
+        "hostingOrg": { "type": "string", "maxLength": 140 },
+        "country": { "type": "string", "maxLength": 80 },
+        "asn": { "type": "string", "maxLength": 32 },
+        "classification": { "type": "string", "enum": ["first-party", "advertising", "analytics", "cloud", "cdn", "social", "crash-reporting", "payment", "attribution", "unclassified"] },
+        "associatedApps": { "type": "array" },
+        "firstObservedAt": { "type": "string", "maxLength": 64 },
+        "lastObservedAt": { "type": "string", "maxLength": 64 },
+        "evidenceSummary": { "type": "string", "maxLength": 500 },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "externalFeedSource": { "type": "string", "maxLength": 140 },
+        "externalFeedVerdict": { "type": "string", "enum": ["malicious", "privacy-invasive", "ad-tracker", "clean", "unlisted"] },
+        "externalFeedDetails": { "type": "string", "maxLength": 500 },
+        "externalFeedCheckedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "companyName", "domain", "observedIp", "hostingOrg", "country", "asn", "classification", "associatedApps", "firstObservedAt", "lastObservedAt", "evidenceSummary", "confidence", "createdAt", "updatedAt"]
+    },
+    "PrivacyPolicyAnalysis": {
+      "title": "PrivacyPolicyAnalysis",
+      "description": "Structured plain-language and clause-level breakdown of a privacy policy or terms document.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "appName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "policyUrl": { "type": "string", "maxLength": 512 },
+        "versionLabel": { "type": "string", "maxLength": 64 },
+        "sourceType": { "type": "string", "enum": ["url", "text", "pdf"] },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "collectedInfo": { "type": "string", "maxLength": 1500 },
+        "purposeOfCollection": { "type": "string", "maxLength": 1500 },
+        "recipients": { "type": "string", "maxLength": 1500 },
+        "soldOrShared": { "type": "string", "maxLength": 1500 },
+        "retentionPeriod": { "type": "string", "maxLength": 1000 },
+        "userChoices": { "type": "string", "maxLength": 1500 },
+        "withdrawalImpact": { "type": "string", "maxLength": 1000 },
+        "unclearOrRiskyClauses": { "type": "string", "maxLength": 2000 },
+        "internationalTransfers": { "type": "string", "maxLength": 1000 },
+        "deletionRights": { "type": "string", "maxLength": 1000 },
+        "clauses": { "type": "array" },
+        "comparisonSummary": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "appName", "policyUrl", "versionLabel", "sourceType", "summary", "collectedInfo", "purposeOfCollection", "recipients", "soldOrShared", "retentionPeriod", "userChoices", "withdrawalImpact", "unclearOrRiskyClauses", "internationalTransfers", "deletionRights", "clauses", "comparisonSummary", "createdAt", "updatedAt"]
+    },
+    "RiskAlert": {
+      "title": "RiskAlert",
+      "description": "Privacy risk or behavioral anomaly finding with severity, evidence, confidence, and mitigation steps.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sessionId": { "type": "string", "maxLength": 128 },
+        "appName": { "type": "string", "maxLength": 140 },
+        "domain": { "type": "string", "maxLength": 253 },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+        "category": { "type": "string", "enum": ["unexpected-third-party", "excessive-permissions", "background-beacon", "new-destination", "disclosure-mismatch", "suspicious-pattern", "data-spike", "policy-violation", "threat-feed-match"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "explanation": { "type": "string", "maxLength": 1200 },
+        "evidence": { "type": "string", "maxLength": 800 },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "recommendedAction": { "type": "string", "maxLength": 600 },
+        "status": { "type": "string", "enum": ["open", "acknowledged", "mitigated"] },
+        "externalFeedSource": { "type": "string", "maxLength": 140 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "deviceId", "sessionId", "appName", "domain", "severity", "category", "title", "explanation", "evidence", "confidence", "recommendedAction", "status", "createdAt", "updatedAt"]
+    },
+    "ForensicReport": {
+      "title": "ForensicReport",
+      "description": "Exported investigation evidence package with SHA-256 integrity hash.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "format": { "type": "string", "enum": ["json", "csv", "html", "pdf"] },
+        "integritySha256": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "recordCount": { "type": "integer" },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "sessionId", "deviceId", "title", "format", "integritySha256", "recordCount", "summary", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Append-only security and governance audit trail.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorEmail": { "type": "string", "maxLength": 256 },
+        "action": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "targetType": { "type": "string", "maxLength": 64 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "actorEmail", "action", "targetType", "targetId", "details", "createdAt"]
+    },
+    "AlertConfig": {
+      "title": "AlertConfig",
+      "description": "User-customizable real-time alert thresholds and notification preferences.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "enableNewThirdPartyAlert": { "type": "boolean" },
+        "enableSensitivePermissionAlert": { "type": "boolean" },
+        "sensitivePermissionThreshold": { "type": "integer" },
+        "enableDataSpikeAlert": { "type": "boolean" },
+        "dataSpikeThresholdKb": { "type": "integer" },
+        "enablePolicyViolationAlert": { "type": "boolean" },
+        "enableThreatFeedAlert": { "type": "boolean" },
+        "notifyInAppBanner": { "type": "boolean" },
+        "notifyBrowserPush": { "type": "boolean" },
+        "notifySoundChime": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "enableNewThirdPartyAlert", "enableSensitivePermissionAlert", "sensitivePermissionThreshold", "enableDataSpikeAlert", "dataSpikeThresholdKb", "enablePolicyViolationAlert", "enableThreatFeedAlert", "notifyInAppBanner", "notifyBrowserPush", "notifySoundChime", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile and data retention settings."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRole" },
+      "description": "Authorized admin role registry."
+    },
+    "/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/Device" },
+      "description": "User-owned monitored endpoint devices."
+    },
+    "/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/MonitoringSession" },
+      "description": "Monitoring and capture inspection sessions."
+    },
+    "/applications/{appId}": {
+      "schema": { "$ref": "#/entities/AnalyzedApplication" },
+      "description": "Scanned applications with permissions and privacy score criteria."
+    },
+    "/connections/{connectionId}": {
+      "schema": { "$ref": "#/entities/NetworkConnection" },
+      "description": "Observed DNS, TLS, and HTTP destination metadata."
+    },
+    "/thirdParties/{serviceId}": {
+      "schema": { "$ref": "#/entities/ThirdPartyService" },
+      "description": "Classified third-party companies and hosting destinations."
+    },
+    "/policies/{policyId}": {
+      "schema": { "$ref": "#/entities/PrivacyPolicyAnalysis" },
+      "description": "Analyzed privacy agreements and consent disclosures."
+    },
+    "/riskAlerts/{alertId}": {
+      "schema": { "$ref": "#/entities/RiskAlert" },
+      "description": "Privacy risk alerts with evidence and status workflow."
+    },
+    "/forensicReports/{reportId}": {
+      "schema": { "$ref": "#/entities/ForensicReport" },
+      "description": "Exported forensic investigation records with SHA-256 hashes."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable governance and security audit log entries."
+    },
+    "/alertConfigs/{configId}": {
+      "schema": { "$ref": "#/entities/AlertConfig" },
+      "description": "Customizable real-time alert thresholds and notification channel preferences."
+    }
+  }
+}

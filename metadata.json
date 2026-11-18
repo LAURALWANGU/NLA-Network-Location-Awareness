@@ -1,0 +1,6 @@
+{
+  "name": "NLA — Network & Location Awareness",
+  "description": "Digital Privacy Intelligence Platform by Newtonix Tech House. See your data, know its destination, and control your digital privacy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
